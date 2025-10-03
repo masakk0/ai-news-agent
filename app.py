@@ -123,7 +123,7 @@ def index():
 @app.route('/api/generate', methods=['POST'])
 def generate_report():
     try:
-        data = request.json
+        data = request.get_json(force=True, silent=True) or {}
         tavily_key = data.get('tavily_key')
         
         if not tavily_key:
