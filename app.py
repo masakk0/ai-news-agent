@@ -44,7 +44,7 @@ class NewsSearcher:
         response = self.tavily.search(
             query="artificial intelligence and machine learning news in model release and new features",
             topic="news",
-            time_period="1w",
+            time_range="week",
             search_depth="advanced",
             max_results=5
         )
