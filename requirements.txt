@@ -1,18 +1,23 @@
+# Web framework
 Flask==3.0.0
 flask-cors==4.0.0
 
-# LangChain ecosystem
-langchain==0.3.25
-langchain-openai==0.3.22
-langchain-core==0.3.67
+# LangChain ecosystem (match the Colab working set)
+langchain==0.3.27
+langchain-core==0.3.77
+langchain-openai==0.3.34
+langgraph==0.6.8
 
-# Tavily – upgrade to 0.4.x or above
-tavily-python>=0.4.0
+# Tavily (use the modern PyPI version you used in Colab)
+tavily-python==0.7.12
 
-# OpenAI / tiktoken dependency
-openai==0.28.1
-tiktoken>=0.9.0,<0.14   # (or a version compatible with langchain-openai)
+# OpenAI + tokeniser
+openai==1.108.0
+tiktoken==0.11.0
 
-# Other stable deps
-pydantic==2.5.0
+# Pydantic — must be >=2.7.4 and <3.0 to satisfy langchain
+pydantic==2.11.9
+
+# Other deps
+python-dotenv==1.1.1
 gunicorn==21.2.0
