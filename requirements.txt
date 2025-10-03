@@ -2,15 +2,17 @@ Flask==3.0.0
 flask-cors==4.0.0
 
 # LangChain ecosystem
-langchain==0.2.0
-langchain-openai==0.1.20
-langgraph==0.1.1 # CHANGED from 0.1.0 to 0.1.1 (was 0.0.20 originally)
+langchain==0.3.25
+langchain-openai==0.3.22
+langchain-core==0.3.67
 
-# Tavily (tiktoken dependency check)
-# NOTE: Using tiktoken 0.9.0 to satisfy langchain-openai 0.1.20
-tavily-python==0.3.5
-tiktoken==0.9.0
+# Tavily – upgrade to 0.4.x or above
+tavily-python>=0.4.0
 
-# Other deps
+# OpenAI / tiktoken dependency
+openai==0.28.1
+tiktoken>=0.9.0,<0.14   # (or a version compatible with langchain-openai)
+
+# Other stable deps
 pydantic==2.5.0
 gunicorn==21.2.0
