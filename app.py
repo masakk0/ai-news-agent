@@ -68,9 +68,9 @@ class NewsSearcher:
             response = self.tavily.search(
                 query=query,
                 topic="news",
-                time_period="1w",
+                time_period="2w",
                 search_depth="advanced",
-                max_results=3,
+                max_results=10,
                 include_domains=self.preferred_domains
             )
             all_results.extend(response['results'])
