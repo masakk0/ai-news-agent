@@ -39,7 +39,6 @@ class GraphState(TypedDict):
 class NewsSearcher:
     def __init__(self, api_key):
         self.tavily = TavilyClient(api_key=api_key)
-        # Define preferred news sources
         self.preferred_domains = [
             "openai.com",
             "anthropic.com",
@@ -50,26 +49,60 @@ class NewsSearcher:
             "ai.google",
             "mistral.ai",
             "cohere.com",
-            "stability.ai"
+            "stability.ai",
+            "arxiv.org",  # For research papers
+            "blog.google",
+            "research.ibm.com"
         ]
     
     def search(self) -> List[Article]:
-        response = self.tavily.search(
-            query="artificial intelligence and machine learning news in model release and new features",
-            topic="news",
-            time_period="1w",
-            search_depth="advanced",
-            max_results=5,
-            include_domains=self.preferred_domains  # Add this parameter
-        )
-        return [Article(title=r['title'], url=r['url'], content=r['content']) 
-                for r in response['results']]
+        # Search with multiple focused queries
+        queries = [
+            "new AI model release announcement features",
+            "machine learning research breakthrough discovery",
+            "LLM language model new capabilities update"
+        ]
+        
+        all_results = []
+        for query in queries:
+            response = self.tavily.search(
+                query=query,
+                topic="news",
+                time_period="1w",
+                search_depth="advanced",
+                max_results=3,
+                include_domains=self.preferred_domains
+            )
+            all_results.extend(response['results'])
+        
+        # Remove duplicates based on URL
+        seen_urls = set()
+        unique_articles = []
+        for r in all_results:
+            if r['url'] not in seen_urls:
+                seen_urls.add(r['url'])
+                unique_articles.append(Article(
+                    title=r['title'], 
+                    url=r['url'], 
+                    content=r['content']
+                ))
+        
+        # Limit to top 7-10 articles
+        return unique_articles[:10]
 
 class Summarizer:
     def __init__(self):
-        self.system_prompt = """You are an AI expert who makes complex topics accessible
-        to general audiences. Summarize this article in 2-3 sentences, focusing on the key points
-        and explaining any technical terms simply."""
+        self.system_prompt = """You are an AI expert summarizing news for technical audiences.
+        
+        For each article, extract and highlight:
+        1. NEW FEATURES: What new capabilities or features were announced?
+        2. RESEARCH FINDINGS: What are the key discoveries or breakthroughs?
+        3. TECHNICAL DETAILS: Model sizes, performance metrics, or architectural innovations
+        4. AVAILABILITY: When/how users can access these features
+        
+        Summarize in 3-4 concise sentences. Focus ONLY on concrete new developments, 
+        not general discussions. If the article doesn't contain substantive new information, 
+        note that clearly."""
     
     def summarize(self, article: Article) -> str:
         response = llm.invoke([
@@ -80,12 +113,27 @@ class Summarizer:
 
 class Publisher:
     def create_report(self, summaries: List[Dict]) -> str:
-        prompt = """Create a weekly AI/ML news report for the general public.
-        Format it with:
-        1. A brief introduction
-        2. The main news items with their summaries
-        3. Links for further reading
-        Make it engaging and accessible to non-technical readers."""
+        prompt = """Create a weekly AI/ML news report organized by categories:
+
+        ## 🚀 New Model Releases & Features
+        (Models, tools, or features announced this week)
+
+        ## 🔬 Research Breakthroughs
+        (Scientific discoveries, papers, or technical advances)
+
+        ## 📊 Performance & Capabilities
+        (Benchmark improvements, new capabilities, technical specs)
+
+        ## 🛠️ Developer Tools & Updates
+        (API changes, SDKs, frameworks, integrations)
+
+        For each item:
+        - Lead with the WHO (company/org) and WHAT (the specific feature/discovery)
+        - Include key technical details or metrics
+        - Add a one-line takeaway of why it matters
+        - Include the source link
+
+        Keep it technical but concise. Skip marketing fluff - focus on concrete, actionable information."""
         
         summaries_text = "\n\n".join([
             f"Title: {item['title']}\nSummary: {item['summary']}\nSource: {item['url']}"
@@ -106,13 +154,25 @@ def search_node(state: Dict[str, Any]) -> Dict[str, Any]:
 def summarize_node(state: Dict[str, Any]) -> Dict[str, Any]:
     summarizer = Summarizer()
     state['summaries'] = []
+    
     for article in state['articles']:
         summary = summarizer.summarize(article)
-        state['summaries'].append({
-            'title': article.title,
-            'summary': summary,
-            'url': article.url
-        })
+        
+        # Filter out articles with no substantial new information
+        low_value_indicators = [
+            "doesn't contain substantive new information",
+            "no concrete new developments",
+            "general discussion only"
+        ]
+        
+        # Only include if it has real substance
+        if not any(indicator.lower() in summary.lower() for indicator in low_value_indicators):
+            state['summaries'].append({
+                'title': article.title,
+                'summary': summary,
+                'url': article.url
+            })
+    
     return state
 
 def publish_node(state: Dict[str, Any]) -> Dict[str, Any]:
