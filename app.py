@@ -8,6 +8,8 @@ from tavily import TavilyClient
 from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph
+import feedparser
+from datetime import datetime, timedelta
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
@@ -35,6 +37,56 @@ class GraphState(TypedDict):
     summaries: Optional[List[Summary]]
     report: Optional[str]
     tavily_key: Optional[str]
+    preferred_domains: Optional[List[str]]
+    include_official_sources: Optional[bool]  # Add this
+
+class RSSFeedReader:
+    def __init__(self):
+        self.rss_feeds = {
+            'OpenAI': 'https://openai.com/news/rss.xml',
+            'Anthropic': 'https://www.anthropic.com/news/rss',
+            'HuggingFace': 'https://huggingface.co/blog/feed.xml',
+            'LangChain': 'https://blog.langchain.dev/rss/',
+            # Add more RSS feeds as available
+        }
+
+def fetch_recent_posts(self, days=7) -> List[Article]:
+        """Fetch recent posts from RSS feeds"""
+        articles = []
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        for company, feed_url in self.rss_feeds.items():
+            try:
+                feed = feedparser.parse(feed_url)
+                
+                for entry in feed.entries[:5]:  # Get last 5 posts
+                    # Check if post is recent
+                    if hasattr(entry, 'published_parsed'):
+                        post_date = datetime(*entry.published_parsed[:6])
+                        if post_date < cutoff_date:
+                            continue
+                    
+                    title = entry.get('title', '')
+                    url = entry.get('link', '')
+                    content = entry.get('summary', '') or entry.get('description', '')
+                    
+                    # Clean HTML from content
+                    from html import unescape
+                    content = BeautifulSoup(content, 'html.parser').get_text()
+                    content = unescape(content)[:2000]
+                    
+                    articles.append(Article(
+                        title=f"[{company}] {title}",
+                        url=url,
+                        content=content
+                    ))
+                    
+            except Exception as e:
+                print(f"Error reading RSS from {company}: {e}")
+                continue
+        
+        return articles
+
 
 class NewsSearcher:
     def __init__(self, api_key):
@@ -55,40 +107,32 @@ class NewsSearcher:
             "research.ibm.com"
         ]
     
-    def search(self) -> List[Article]:
-        # Search with multiple focused queries
-        queries = [
-            "new AI model release announcement features",
-            "machine learning research breakthrough discovery",
-            "LLM language model new capabilities update"
-        ]
+    def search_node(state: Dict[str, Any]) -> Dict[str, Any]:
+        all_articles = []
         
-        all_results = []
-        for query in queries:
-            response = self.tavily.search(
-                query=query,
-                topic="news",
-                time_period="2w",
-                search_depth="advanced",
-                max_results=10,
-                include_domains=self.preferred_domains
-            )
-            all_results.extend(response['results'])
+        # 1. Get news articles from Tavily
+        searcher = NewsSearcher(state['tavily_key'])
+        if state.get('preferred_domains'):
+            searcher.preferred_domains = state['preferred_domains']
+        tavily_articles = searcher.search()
+        all_articles.extend(tavily_articles)
         
-        # Remove duplicates based on URL
+        # 2. Get official announcements from RSS feeds
+        if state.get('include_official_sources', True):  # Default to True
+            rss_reader = RSSFeedReader()
+            official_articles = rss_reader.fetch_recent_posts(days=7)
+            all_articles.extend(official_articles)
+        
+        # 3. Remove duplicates by URL
         seen_urls = set()
         unique_articles = []
-        for r in all_results:
-            if r['url'] not in seen_urls:
-                seen_urls.add(r['url'])
-                unique_articles.append(Article(
-                    title=r['title'], 
-                    url=r['url'], 
-                    content=r['content']
-                ))
+        for article in all_articles:
+            if article.url not in seen_urls:
+                seen_urls.add(article.url)
+                unique_articles.append(article)
         
-        # Limit to top 7-10 articles
-        return unique_articles[:10]
+        state['articles'] = unique_articles[:15]  # Keep top 15
+        return state
 
 class Summarizer:
     def __init__(self):
@@ -208,7 +252,8 @@ def generate_report():
             "articles": None,
             "summaries": None,
             "report": None,
-            "tavily_key": tavily_key
+            "tavily_key": tavily_key,
+            "include_official_sources": True  # Enable official sources
         })
         
         return jsonify({
