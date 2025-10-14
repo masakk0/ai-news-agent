@@ -39,6 +39,19 @@ class GraphState(TypedDict):
 class NewsSearcher:
     def __init__(self, api_key):
         self.tavily = TavilyClient(api_key=api_key)
+        # Define preferred news sources
+        self.preferred_domains = [
+            "openai.com",
+            "anthropic.com",
+            "langchain.com",
+            "huggingface.co",
+            "deepmind.google",
+            "ai.meta.com",
+            "ai.google",
+            "mistral.ai",
+            "cohere.com",
+            "stability.ai"
+        ]
     
     def search(self) -> List[Article]:
         response = self.tavily.search(
@@ -46,7 +59,8 @@ class NewsSearcher:
             topic="news",
             time_period="1w",
             search_depth="advanced",
-            max_results=5
+            max_results=5,
+            include_domains=self.preferred_domains  # Add this parameter
         )
         return [Article(title=r['title'], url=r['url'], content=r['content']) 
                 for r in response['results']]
